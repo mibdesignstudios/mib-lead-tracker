@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>MIB Lead Tracker · Admin</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/common.js"></script>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <a class="brand" href="/admin"><img src="/assets/logo.jpg" alt="MIB Design Studios logo"><div><b>Lead Tracker</b><span>MIB Design Studios</span></div></a>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" data-view="leads" aria-selected="true">Leads</button>
+    <button class="tab" role="tab" data-view="partners" aria-selected="false">Partners</button>
+    <button class="tab" role="tab" data-view="payments" aria-selected="false">Payments</button>
+    <button class="tab" type="button" onclick="logout()">Log out</button>
+  </nav>
+</div></header>
+
+<main>
+  <!-- LEADS -->
+  <section id="v-leads" style="display:flex;flex-direction:column;gap:14px">
+    <div class="row" style="justify-content:space-between">
+      <h1>Leads</h1>
+      <button class="btn btn-primary" type="button" id="addLead">+ Add lead</button>
+    </div>
+    <div class="chips" id="stageChips" role="group" aria-label="Filter by stage"></div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <label class="f" for="fAgent">Partner<select id="fAgent"></select></label>
+      <label class="f" for="fSearch">Search<input id="fSearch" type="search" placeholder="Client, phone, area or partner"></label>
+    </div>
+    <div class="list" id="leadList"></div>
+  </section>
+
+  <!-- PARTNERS -->
+  <section id="v-partners" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="row" style="justify-content:space-between">
+      <h1>Partners</h1>
+      <button class="btn btn-primary" type="button" id="addPartnerBtn">+ Add partner</button>
+    </div>
+    <form id="partnerForm" class="card" hidden novalidate>
+      <h2>New partner</h2>
+      <div class="grid">
+        <label class="f" for="pName">Name<input id="pName" required placeholder="e.g. Rahul Patil"></label>
+        <label class="f" for="pPhone">WhatsApp number<input id="pPhone" inputmode="tel" placeholder="98XXXXXXXX"></label>
+        <label class="f" for="pFirm">Agency / firm<input id="pFirm" placeholder="Optional"></label>
+      </div>
+      <p class="muted small">We'll create a Partner ID and a 6-digit PIN. Leads already sent from this WhatsApp number get linked automatically.</p>
+      <div class="row"><button class="btn btn-primary" type="submit">Create partner</button><button class="btn btn-ghost" type="button" id="pCancel">Cancel</button></div>
+    </form>
+    <div id="newLogin" hidden></div>
+    <div class="list" id="partnerList"></div>
+  </section>
+
+  <!-- PAYMENTS -->
+  <section id="v-payments" hidden style="display:flex;flex-direction:column;gap:14px">
+    <h1>Payments to partners</h1>
+    <form id="payForm" class="card" novalidate>
+      <h2>Record a payment</h2>
+      <div class="grid">
+        <label class="f" for="payAgent">Partner<select id="payAgent" required></select></label>
+        <label class="f" for="payLead">For lead<select id="payLead"><option value="">General / not linked</option></select></label>
+        <label class="f" for="payAmt">Amount (₹)<input id="payAmt" inputmode="numeric" placeholder="25000" required></label>
+        <label class="f" for="payDate">Paid on<input id="payDate" type="date"></label>
+      </div>
+      <label class="f" for="payNote">Note<input id="payNote" placeholder="e.g. 1st half via NEFT, UTR 1234"></label>
+      <p class="small" id="payInfo"></p>
+      <div class="row"><button class="btn btn-primary" type="submit">Save payment</button></div>
+    </form>
+    <div id="payList"></div>
+  </section>
+</main>
+
+<!-- Lead panel -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" hidden role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+  <div class="panel-head"><h2 id="panelTitle">Lead</h2><button class="btn btn-ghost btn-sm" type="button" id="panelClose">Close</button></div>
+  <form class="panel-body" id="leadForm" novalidate>
+    <div id="dupWarn" hidden class="note"></div>
+    <fieldset>
+      <legend>Stage</legend>
+      <label class="f" for="lStatus">Current stage<select id="lStatus"></select></label>
+      <label class="f" for="lFollow" data-for="follow_up">Call back on<input id="lFollow" type="date"></label>
+      <label class="f" for="lMeet" data-for="meet">Meeting date<input id="lMeet" type="date"></label>
+      <div data-for="onboard" style="display:grid;gap:12px">
+        <label class="f" for="lValue">Signed project value (₹ lakh, excl. GST)<input id="lValue" type="number" step="0.01" min="0" inputmode="decimal" placeholder="e.g. 18.5"></label>
+        <div class="feebox"><div><span class="label">Partner fee</span><div class="small muted" id="feeHint">Slab fee from project value</div></div><b id="feeShow">—</b></div>
+        <label class="check"><input type="checkbox" id="lFeeCustom"> Use a custom fee (loyalty bonus, design-only job, etc.)</label>
+        <label class="f" for="lFee" hidden id="lFeeWrap">Custom fee (₹)<input id="lFee" inputmode="numeric"></label>
+        <label class="check"><input type="checkbox" id="lHanded"> Handover done (second 50% becomes due)</label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Add an update</legend>
+      <label class="f" for="lNote">What happened?<textarea id="lNote" placeholder="e.g. Client asked to call after Diwali. Wants 3 BHK full interiors."></textarea></label>
+      <label class="check"><input type="checkbox" id="lShared" checked> Show this update to the partner</label>
+    </fieldset>
+    <fieldset>
+      <legend>Client &amp; partner</legend>
+      <label class="f" for="lAgent">Partner<select id="lAgent"></select></label>
+      <p class="small muted" id="rawAgent" hidden></p>
+      <div class="grid">
+        <label class="f" for="lClient">Client name<input id="lClient" required></label>
+        <label class="f" for="lPhone">Client phone<input id="lPhone" inputmode="tel"></label>
+        <label class="f" for="lType">Property type<input id="lType" placeholder="2 BHK flat"></label>
+        <label class="f" for="lLoc">Location<input id="lLoc" placeholder="Powai"></label>
+        <label class="f" for="lBudget">Budget<input id="lBudget"></label>
+        <label class="f" for="lWhen">Timeline<input id="lWhen"></label>
+      </div>
+      <label class="f" for="lService">Needs<select id="lService"><option>Full interiors (design + execution)</option><option>Planning &amp; 3D visualisation only</option><option>Not sure yet</option></select></label>
+      <label class="f" for="lNotes">Details from partner<textarea id="lNotes"></textarea></label>
+      <div class="row" id="contactBtns"></div>
+    </fieldset>
+    <section id="histWrap" style="display:grid;gap:8px"><h3>History</h3><ul class="history" id="hist"></ul></section>
+  </form>
+  <div class="panel-foot">
+    <button class="btn btn-primary" type="submit" form="leadForm" id="saveLead">Save</button>
+    <button class="btn btn-danger" type="button" id="delLead">Delete</button>
+  </div>
+</aside>
+
+<script>
+const S = { view: "leads", status: "", agent: "", search: "", agents: [], unassigned: 0, lead: null };
+const $ = id => document.getElementById(id);
+const SLABS = [[10,15,50000],[15,22,65000],[22,30,85000],[30,40,110000],[40,50,135000]];
+function calcFee(lakhV){ const v = Number(lakhV); if (!v || v < 10) return 0; if (v >= 50) return Math.min(Math.round(v*100000*0.03), 250000); const s = SLABS.find(([a,b]) => v>=a && v<b); return s ? s[2] : 0; }
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab[data-view]").forEach(t => t.onclick = () => show(t.dataset.view));
+function show(v){
+  S.view = v;
+  document.querySelectorAll(".tab[data-view]").forEach(t => t.setAttribute("aria-selected", t.dataset.view === v));
+  ["leads","partners","payments"].forEach(k => $("v-"+k).hidden = k !== v);
+  if (v === "leads") loadLeads(); if (v === "partners") loadAgents(true); if (v === "payments") loadPayments();
+}
+
+/* ---------- partners data ---------- */
+async function loadAgents(render){
+  const d = await api("/api/agents");
+  S.agents = d.agents; S.unassigned = d.unassigned;
+  const opts = S.agents.map(a => `<option value="${a.id}">${esc(a.name)} · ${esc(a.code)}${a.active?"":" (inactive)"}</option>`).join("");
+  $("fAgent").innerHTML = `<option value="">All partners</option><option value="none">Unassigned (${S.unassigned})</option>` + opts;
+  $("fAgent").value = S.agent;
+  $("lAgent").innerHTML = `<option value="">Unassigned</option>` + opts;
+  $("payAgent").innerHTML = `<option value="">Choose partner</option>` + opts;
+  if (render) renderAgents();
+}
+function renderAgents(){
+  const L = $("partnerList");
+  if (!S.agents.length){ L.innerHTML = `<div class="empty">No partners yet. Add your first partner to give them a login.</div>`; return; }
+  L.innerHTML = S.agents.map(a => {
+    const bal = Number(a.due_to_date) - Number(a.paid);
+    return `<article class="card">
+      <div class="card-top"><div><h3>${esc(a.name)}</h3><p class="small muted">${esc(a.code)}${a.firm?" · "+esc(a.firm):""}${a.phone?" · "+esc(a.phone):""}</p></div>${a.active?"":`<span class="pill" style="--c:var(--st-lost)">Inactive</span>`}</div>
+      <div class="meta"><span><b class="num">${a.leads}</b> lead${a.leads==1?"":"s"}</span><span><b class="num">${a.active_leads}</b> in progress</span><span><b class="num">${a.onboard}</b> onboard</span></div>
+      <div class="money"><div><span>Earned</span><b>${inr(a.earned)}</b></div><div><span>Due to date</span><b>${inr(a.due_to_date)}</b></div><div><span>Paid</span><b>${inr(a.paid)}</b></div><div class="bal"><span>Balance</span><b>${inr(bal)}</b></div></div>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" data-act="leads" data-id="${a.id}">View leads</button>
+        <button class="btn btn-ghost btn-sm" data-act="pay" data-id="${a.id}">Record payment</button>
+        <button class="btn btn-ghost btn-sm" data-act="pin" data-id="${a.id}">Reset PIN</button>
+        <button class="btn btn-ghost btn-sm" data-act="toggle" data-id="${a.id}">${a.active?"Deactivate":"Activate"}</button>
+      </div></article>`; }).join("");
+}
+$("partnerList").onclick = async e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const a = S.agents.find(x => x.id == b.dataset.id);
+  if (b.dataset.act === "leads"){ S.agent = String(a.id); S.status = ""; show("leads"); }
+  if (b.dataset.act === "pay"){ show("payments"); $("payAgent").value = a.id; $("payAgent").dispatchEvent(new Event("change")); }
+  if (b.dataset.act === "pin"){
+    if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Tap again to reset"; setTimeout(()=>{ b.dataset.confirm=""; b.textContent="Reset PIN"; }, 4000); return; }
+    const r = await api("/api/agents", { method: "PATCH", body: { id: a.id, resetPin: true } });
+    showLogin(a, r.pin, "New PIN created. The old PIN no longer works.");
+  }
+  if (b.dataset.act === "toggle"){ await api("/api/agents", { method: "PATCH", body: { id: a.id, active: !a.active } }); toast(a.active ? "Partner deactivated" : "Partner activated"); loadAgents(true); }
+};
+$("addPartnerBtn").onclick = () => { $("partnerForm").hidden = false; $("pName").focus(); };
+$("pCancel").onclick = () => { $("partnerForm").hidden = true; };
+$("partnerForm").onsubmit = async e => {
+  e.preventDefault();
+  try {
+    const r = await api("/api/agents", { method: "POST", body: { name: $("pName").value, phone: $("pPhone").value, firm: $("pFirm").value } });
+    $("partnerForm").reset(); $("partnerForm").hidden = true;
+    showLogin(r.agent, r.pin, "Partner created. Send them their login now — the PIN is shown only once.");
+    loadAgents(true);
+  } catch (err) { toast(err.message); }
+};
+function showLogin(a, pin, msg){
+  const url = location.origin;
+  const text = `Hi ${a.name}, welcome to the MIB Design Studios partner programme.\n\nTrack your referrals and payouts here: ${url}\nPartner ID: ${a.code}\nPIN: ${pin}\n\nWhen you refer a client, add your Partner ID in the form so it's credited to you: ${REFERRAL_URL}`;
+  $("newLogin").hidden = false;
+  $("newLogin").innerHTML = `<div class="card"><p>${esc(msg)}</p>
+    <div class="secret"><span>Partner ID: <b>${esc(a.code)}</b></span><span>PIN: <b>${esc(pin)}</b></span></div>
+    <div class="row">${a.phone?`<a class="btn btn-wa" target="_blank" rel="noopener" href="${waLink(a.phone, text)}">Send login on WhatsApp</a>`:""}
+    <button class="btn btn-ghost" type="button" id="copyLogin">Copy message</button><button class="btn btn-ghost" type="button" id="hideLogin">Done</button></div></div>`;
+  $("copyLogin").onclick = () => navigator.clipboard.writeText(text).then(() => toast("Copied"), () => toast("Copy failed — select the text manually"));
+  $("hideLogin").onclick = () => { $("newLogin").hidden = true; };
+  $("newLogin").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ---------- leads ---------- */
+function renderChips(counts, due){
+  const total = Object.values(counts).reduce((a,b)=>a+b,0);
+  $("stageChips").innerHTML = `<button class="chip" data-s="" aria-pressed="${S.status===""}">All <span class="n">${total}</span></button>` +
+    STAGES.map(([k,l]) => `<button class="chip" data-s="${k}" aria-pressed="${S.status===k}"><span class="dot" style="color:var(--st-${k})"></span>${l} <span class="n">${counts[k]||0}</span></button>`).join("") +
+    (due ? `<button class="chip alert" data-s="follow_up" aria-pressed="false">Call-backs due today <span class="n">${due}</span></button>` : "");
+}
+$("stageChips").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.status = c.dataset.s; loadLeads(); };
+$("fAgent").onchange = () => { S.agent = $("fAgent").value; loadLeads(); };
+let st; $("fSearch").oninput = () => { clearTimeout(st); st = setTimeout(() => { S.search = $("fSearch").value.trim(); loadLeads(); }, 250); };
+
+async function loadLeads(){
+  const p = new URLSearchParams(); if (S.status) p.set("status", S.status); if (S.agent) p.set("agent", S.agent); if (S.search) p.set("search", S.search);
+  const d = await api("/api/leads?" + p);
+  renderChips(d.counts, d.followUpsDue);
+  $("fAgent").value = S.agent;
+  const L = $("leadList"), t = today();
+  if (!d.leads.length){ L.innerHTML = `<div class="empty">No leads here yet.</div>`; return; }
+  L.innerHTML = d.leads.map(l => {
+    const partner = l.agent_name ? `${esc(l.agent_name)} · ${esc(l.agent_code)}` : `<span class="due">Unassigned</span>${l.agent_name_raw?" — "+esc(l.agent_name_raw):""}`;
+    let next = "";
+    if (l.status === "follow_up" && l.follow_up_date) next = `<span class="${isoDate(l.follow_up_date) <= t ? "due" : ""}">Call back ${fdate(l.follow_up_date)}</span>`;
+    if (l.status === "meet" && l.meet_date) next = `<span>Meeting ${fdate(l.meet_date)}</span>`;
+    if (l.status === "onboard") next = `<span>${lakh(l.project_value)} · fee ${inr(l.fee)}${l.handed_over?" · handed over":""}</span>`;
+    return `<article class="card"><button class="card-btn" data-id="${l.id}">
+      <div class="card-top"><h3>${esc(l.client_name)}</h3>${pill(l.status)}</div>
+      <div class="meta"><span>${partner}</span></div>
+      <div class="meta"><span>${esc([l.property_type,l.location].filter(Boolean).join(" · ")||"—")}</span>${next}<span>Added ${fdate(l.created_at)}</span>${l.duplicate_of?`<span class="due">Possible repeat</span>`:""}</div>
+      ${l.last_note?`<p class="note">${esc(l.last_note)}</p>`:""}
+    </button>
+    <div class="row">${l.client_phone?`<a class="btn btn-ghost btn-sm" href="${telLink(l.client_phone)}">Call</a><a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${waLink(l.client_phone)}">WhatsApp</a>`:""}</div>
+    </article>`; }).join("");
+}
+$("leadList").onclick = e => { const b = e.target.closest(".card-btn"); if (b) openLead(Number(b.dataset.id)); };
+$("addLead").onclick = () => openLead(null);
+
+/* ---------- lead panel ---------- */
+$("lStatus").innerHTML = STAGES.map(([k,l]) => `<option value="${k}">${l}</option>`).join("");
+function stageFields(){ const s = $("lStatus").value; document.querySelectorAll("[data-for]").forEach(el => el.hidden = el.dataset.for !== s); }
+function feePreview(){
+  const custom = $("lFeeCustom").checked; $("lFeeWrap").hidden = !custom;
+  const f = custom ? Number(String($("lFee").value).replace(/[^\d.]/g,"")) : calcFee($("lValue").value);
+  $("feeShow").textContent = $("lValue").value || custom ? inr(f) : "—";
+  $("feeHint").textContent = custom ? "Custom fee" : (Number($("lValue").value) && Number($("lValue").value) < 10 ? "Below ₹10 lakh: no slab fee" : "Slab fee from project value");
+}
+["lStatus"].forEach(id => $(id).onchange = stageFields);
+["lValue","lFee"].forEach(id => $(id).oninput = feePreview);
+$("lFeeCustom").onchange = feePreview;
+function closePanel(){ $("panel").hidden = true; $("scrim").hidden = true; }
+$("panelClose").onclick = closePanel; $("scrim").onclick = closePanel;
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("panel").hidden) closePanel(); });
+
+async function openLead(id){
+  await (S.agents.length ? Promise.resolve() : loadAgents(false));
+  $("leadForm").reset(); S.lead = null;
+  let l = { status: "new", service: "Full interiors (design + execution)" }, updates = [];
+  if (id){ const d = await api("/api/leads?id=" + id); l = d.lead; updates = d.updates; S.lead = l; }
+  $("panelTitle").textContent = id ? l.client_name : "New lead";
+  $("lStatus").value = l.status; $("lFollow").value = isoDate(l.follow_up_date); $("lMeet").value = isoDate(l.meet_date);
+  $("lValue").value = l.project_value ? Number(l.project_value)/100000 : "";
+  $("lFeeCustom").checked = !!l.fee_manual; $("lFee").value = l.fee_manual ? Math.round(l.fee) : ""; $("lHanded").checked = !!l.handed_over;
+  $("lAgent").value = l.agent_id || ""; $("lClient").value = l.client_name || ""; $("lPhone").value = l.client_phone || "";
+  $("lType").value = l.property_type || ""; $("lLoc").value = l.location || ""; $("lBudget").value = l.budget || ""; $("lWhen").value = l.timeline || "";
+  if (l.service) $("lService").value = l.service; $("lNotes").value = l.notes || ""; $("lShared").checked = true;
+  $("rawAgent").hidden = !(l.agent_name_raw || l.agent_phone_raw);
+  $("rawAgent").textContent = `Sent by: ${l.agent_name_raw || "—"}${l.agent_phone_raw ? " · " + l.agent_phone_raw : ""}${!l.agent_id ? " — not linked to a partner yet. Pick one above, or add them in Partners." : ""}`;
+  $("dupWarn").hidden = !l.duplicate_of; $("dupWarn").textContent = l.duplicate_of ? "This client's phone number matches an earlier lead. Check which partner registered them first." : "";
+  $("contactBtns").innerHTML = l.client_phone ? `<a class="btn btn-ghost btn-sm" href="${telLink(l.client_phone)}">Call client</a><a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${waLink(l.client_phone)}">WhatsApp client</a>` : "";
+  $("histWrap").hidden = !updates.length;
+  $("hist").innerHTML = updates.map(u => `<li><time>${fdate(u.created_at)}</time><span>${esc(u.note || STAGE_LABEL[u.status] || "")}${u.shared ? "" : `<span class="tag">internal</span>`}</span></li>`).join("");
+  $("delLead").hidden = !id; $("delLead").dataset.confirm = ""; $("delLead").textContent = "Delete";
+  stageFields(); feePreview();
+  $("panel").hidden = false; $("scrim").hidden = false; $("panelClose").focus();
+}
+$("leadForm").onsubmit = async e => {
+  e.preventDefault();
+  if (!$("lClient").value.trim()){ toast("Add the client's name."); $("lClient").focus(); return; }
+  const base = { agent_id: $("lAgent").value || null, client_name: $("lClient").value, client_phone: $("lPhone").value, property_type: $("lType").value,
+    location: $("lLoc").value, budget: $("lBudget").value, timeline: $("lWhen").value, service: $("lService").value, notes: $("lNotes").value };
+  const stage = { status: $("lStatus").value, follow_up_date: $("lFollow").value, meet_date: $("lMeet").value,
+    project_value: $("lValue").value ? Math.round(Number($("lValue").value) * 100000) : "", handed_over: $("lHanded").checked,
+    note: $("lNote").value, note_shared: $("lShared").checked };
+  if ($("lFeeCustom").checked) stage.fee = $("lFee").value; else stage.fee_auto = true;
+  $("saveLead").disabled = true;
+  try {
+    let id = S.lead && S.lead.id;
+    if (!id){ const r = await api("/api/leads", { method: "POST", body: base }); id = r.id; if (r.duplicate_of) toast("Saved. Note: this client was referred before."); }
+    await api("/api/leads", { method: "PATCH", body: { id, ...base, ...stage } });
+    closePanel(); toast("Lead saved"); loadLeads(); loadAgents(false);
+  } catch (err) { toast(err.message); }
+  $("saveLead").disabled = false;
+};
+$("delLead").onclick = async () => {
+  const b = $("delLead");
+  if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Tap again to delete"; return; }
+  await api("/api/leads?id=" + S.lead.id, { method: "DELETE" }); closePanel(); toast("Lead deleted"); loadLeads();
+};
+
+/* ---------- payments ---------- */
+$("payDate").value = today();
+$("payAgent").onchange = async () => {
+  const id = $("payAgent").value; $("payLead").innerHTML = `<option value="">General / not linked</option>`; $("payInfo").textContent = "";
+  if (!id) return;
+  const a = S.agents.find(x => x.id == id);
+  if (a) $("payInfo").innerHTML = `Due to date <b>${inr(a.due_to_date)}</b> · paid <b>${inr(a.paid)}</b> · balance <b>${inr(Number(a.due_to_date) - Number(a.paid))}</b>`;
+  const d = await api(`/api/leads?agent=${id}&status=onboard`);
+  $("payLead").innerHTML += d.leads.map(l => `<option value="${l.id}">${esc(l.client_name)} — fee ${inr(l.fee)}</option>`).join("");
+};
+$("payForm").onsubmit = async e => {
+  e.preventDefault();
+  try {
+    await api("/api/payments", { method: "POST", body: { agent_id: $("payAgent").value, lead_id: $("payLead").value, amount: $("payAmt").value, paid_on: $("payDate").value, note: $("payNote").value } });
+    toast("Payment saved"); $("payAmt").value = ""; $("payNote").value = ""; await loadAgents(false); $("payAgent").dispatchEvent(new Event("change")); loadPayments();
+  } catch (err) { toast(err.message); }
+};
+async function loadPayments(){
+  if (!S.agents.length) await loadAgents(false);
+  const d = await api("/api/payments");
+  $("payList").innerHTML = d.payments.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Partner</th><th>Lead</th><th>Note</th><th class="r">Amount</th><th></th></tr></thead><tbody>${
+    d.payments.map(p => `<tr><td>${fdate(p.paid_on,true)}</td><td>${esc(p.agent_name)} · ${esc(p.agent_code)}</td><td>${esc(p.client_name||"—")}</td><td>${esc(p.note||"")}</td><td class="r num">${inr(p.amount)}</td><td><button class="btn btn-danger btn-sm" data-del="${p.id}">Remove</button></td></tr>`).join("")
+  }</tbody></table></div>` : `<div class="empty">No payments recorded yet.</div>`;
+}
+$("payList").onclick = async e => {
+  const b = e.target.closest("[data-del]"); if (!b) return;
+  if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Tap again"; return; }
+  await api("/api/payments?id=" + b.dataset.del, { method: "DELETE" }); toast("Payment removed"); loadAgents(false); loadPayments();
+};
+
+/* ---------- start ---------- */
+api("/api/me").then(m => { if (m.role !== "admin") location.href = "/"; else { loadAgents(false).then(loadLeads); } }).catch(e => toast(e.message));
+</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>My Referrals · MIB</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/common.js"></script>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <a class="brand" href="/portal"><img src="/assets/logo.jpg" alt="MIB Design Studios logo"><div><b id="who">My referrals</b><span id="whoCode">MIB partner</span></div></a>
+  <div class="tabs"><button class="tab" type="button" onclick="logout()">Log out</button></div>
+</div></header>
+<main>
+  <div class="row" style="justify-content:space-between">
+    <h1>Your referrals</h1>
+    <a class="btn btn-wa" id="referBtn" target="_blank" rel="noopener">Refer a new client</a>
+  </div>
+  <section class="stats" id="stats" aria-label="Summary"></section>
+  <p class="muted small">Fees are paid 50% when the client pays the first milestone and 50% after handover. "Due now" is what MIB owes you today.</p>
+  <section aria-labelledby="hLeads" style="display:flex;flex-direction:column;gap:10px">
+    <h2 id="hLeads">Leads</h2>
+    <div class="list" id="leads"></div>
+  </section>
+  <section aria-labelledby="hPay" style="display:flex;flex-direction:column;gap:10px">
+    <h2 id="hPay">Payments received</h2>
+    <div id="pays"></div>
+  </section>
+</main>
+<script>
+document.getElementById("referBtn").href = REFERRAL_URL + "#refer";
+const ORDER = ["new","follow_up","meet","quote","onboard"];
+function steps(status){
+  if (status === "lost") return `<div class="steps" aria-hidden="true">${ORDER.map(()=>`<span></span>`).join("")}</div>`;
+  const i = ORDER.indexOf(status);
+  return `<div class="steps" aria-hidden="true" style="--c:var(--st-${status})">${ORDER.map((_,k)=>`<span class="${k<=i?"on":""}"></span>`).join("")}</div>`;
+}
+async function load(){
+  const d = await api("/api/portal");
+  document.getElementById("who").textContent = d.agent.name;
+  document.getElementById("whoCode").textContent = d.agent.code + (d.agent.firm ? " · " + d.agent.firm : "");
+  const m = d.money, balance = Number(m.due_to_date) - Number(m.paid);
+  document.getElementById("stats").innerHTML = [
+    ["Leads shared", m.leads], ["In progress", m.active_leads], ["Onboard", m.onboard],
+    ["Total earned", inr(m.earned)], ["Paid to you", inr(m.paid)], ["Due now", inr(Math.max(balance,0)), "hi"],
+  ].map(([l,v,c])=>`<div class="stat ${c||""}"><span class="label">${l}</span><b>${v}</b></div>`).join("");
+  const L = document.getElementById("leads");
+  L.innerHTML = d.leads.length ? d.leads.map(l => `
+    <article class="card">
+      <div class="card-top"><h3>${esc(l.client_name)}</h3>${pill(l.status)}</div>
+      ${steps(l.status)}
+      <div class="meta"><span>${esc([l.property_type,l.location].filter(Boolean).join(" · ")||"—")}</span><span>Shared ${fdate(l.created_at,true)}</span></div>
+      ${l.status==="follow_up"&&l.follow_up_date?`<p class="small">Follow-up planned for <b>${fdate(l.follow_up_date)}</b></p>`:""}
+      ${l.status==="meet"&&l.meet_date?`<p class="small">Meeting on <b>${fdate(l.meet_date)}</b></p>`:""}
+      ${l.status==="onboard"?`<div class="feebox"><div><span class="label">Your fee</span><div class="small muted">Project ${lakh(l.project_value)}${l.handed_over?" · handed over":""}</div></div><b>${inr(l.fee)}</b></div>`:""}
+      ${l.updates.length?`<ul class="history">${l.updates.map(u=>`<li><time>${fdate(u.created_at)}</time><span>${esc(u.note||STAGE_LABEL[u.status]||"")}</span></li>`).join("")}</ul>`:""}
+    </article>`).join("") : `<div class="empty">No leads yet. Tap “Refer a new client” to share your first one.</div>`;
+  document.getElementById("pays").innerHTML = d.payments.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>For</th><th>Note</th><th class="r">Amount</th></tr></thead><tbody>${
+    d.payments.map(p=>`<tr><td>${fdate(p.paid_on,true)}</td><td>${esc(p.client_name||"—")}</td><td>${esc(p.note||"")}</td><td class="r num">${inr(p.amount)}</td></tr>`).join("")}</tbody></table></div>`
+    : `<div class="empty">No payments yet.</div>`;
+}
+load().catch(e => toast(e.message));
+</script>
+</body>
+</html>

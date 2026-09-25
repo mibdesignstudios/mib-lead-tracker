@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>MIB Lead Tracker</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/common.js"></script>
+</head>
+<body>
+<div class="login">
+  <div class="brand"><img src="/assets/logo.jpg" alt="MIB Design Studios logo"><div><b>MIB Lead Tracker</b><span>Partner referrals · MIB Design Studios</span></div></div>
+  <div class="seg" role="group" aria-label="Log in as">
+    <button type="button" id="segAgent" aria-pressed="true">Partner</button>
+    <button type="button" id="segAdmin" aria-pressed="false">MIB team</button>
+  </div>
+  <form id="agentForm" novalidate>
+    <h2>Partner login</h2>
+    <p class="muted small">See the leads you've shared, their status, and what MIB owes you.</p>
+    <label class="f" for="code">Partner ID<input id="code" autocomplete="username" placeholder="MIB-A001" autocapitalize="characters" required></label>
+    <label class="f" for="pin">PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="6-digit PIN" required></label>
+    <p class="err" id="agentErr" role="alert"></p>
+    <button class="btn btn-primary" type="submit">Log in</button>
+    <p class="muted small">Don't have a Partner ID? Ask Hussain at MIB Design Studios on WhatsApp.</p>
+  </form>
+  <form id="adminForm" novalidate hidden>
+    <h2>MIB team login</h2>
+    <label class="f" for="password">Admin password<input id="password" type="password" autocomplete="current-password" required></label>
+    <p class="err" id="adminErr" role="alert"></p>
+    <button class="btn btn-primary" type="submit">Log in</button>
+  </form>
+</div>
+<script>
+const segA = document.getElementById("segAgent"), segM = document.getElementById("segAdmin");
+const fA = document.getElementById("agentForm"), fM = document.getElementById("adminForm");
+function mode(admin){ segA.setAttribute("aria-pressed", !admin); segM.setAttribute("aria-pressed", admin); fA.hidden = admin; fM.hidden = !admin; }
+segA.onclick = () => mode(false); segM.onclick = () => mode(true);
+if (location.hash === "#team") mode(true);
+api("/api/me", { noRedirect: true }).then(m => { if (m.role === "admin") location.href = "/admin"; else if (m.role === "agent") location.href = "/portal"; }).catch(() => {});
+async function go(form, body, errEl, dest){
+  const btn = form.querySelector("button[type=submit]"); btn.disabled = true; errEl.textContent = "";
+  try { await api("/api/login", { method: "POST", body, noRedirect: true }); location.href = dest; }
+  catch (e) { errEl.textContent = e.message; btn.disabled = false; }
+}
+fA.onsubmit = e => { e.preventDefault(); go(fA, { role: "agent", code: document.getElementById("code").value, pin: document.getElementById("pin").value }, document.getElementById("agentErr"), "/portal"); };
+fM.onsubmit = e => { e.preventDefault(); go(fM, { role: "admin", password: document.getElementById("password").value }, document.getElementById("adminErr"), "/admin"); };
+</script>
+</body>
+</html>

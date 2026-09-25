@@ -1,0 +1,11 @@
+{
+  "name": "mib-lead-tracker",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.12",
+    "pg": "^8.23.0"
+  }
+}
