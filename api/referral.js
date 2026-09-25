@@ -20,15 +20,15 @@ export default route({
 
     let agentId = null;
     const code = clean(b.partnerId, 20);
-    if (code) agentId = (await q("SELECT id FROM agents WHERE code=$1 AND active", [code.toUpperCase()]))[0]?.id || null;
-    if (!agentId && b.agentPh) agentId = (await q("SELECT id FROM agents WHERE active AND right(regexp_replace(coalesce(phone,''),'\\D','','g'),10)=$1", [phone10(b.agentPh)]))[0]?.id || null;
-    const dup = (await q("SELECT id FROM leads WHERE right(regexp_replace(coalesce(client_phone,''),'\\D','','g'),10)=$1 ORDER BY id LIMIT 1", [phone10(clientPhone)]))[0];
+    if (code) agentId = (await q("SELECT id FROM mib_agents WHERE code=$1 AND active", [code.toUpperCase()]))[0]?.id || null;
+    if (!agentId && b.agentPh) agentId = (await q("SELECT id FROM mib_agents WHERE active AND right(regexp_replace(coalesce(phone,''),'\\D','','g'),10)=$1", [phone10(b.agentPh)]))[0]?.id || null;
+    const dup = (await q("SELECT id FROM mib_leads WHERE right(regexp_replace(coalesce(client_phone,''),'\\D','','g'),10)=$1 ORDER BY id LIMIT 1", [phone10(clientPhone)]))[0];
 
-    const r = await q(`INSERT INTO leads (agent_id, agent_name_raw, agent_phone_raw, client_name, client_phone, property_type, location, budget, timeline, service, notes, source, duplicate_of)
+    const r = await q(`INSERT INTO mib_leads (agent_id, agent_name_raw, agent_phone_raw, client_name, client_phone, property_type, location, budget, timeline, service, notes, source, duplicate_of)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'form',$12) RETURNING id`,
       [agentId, clean(b.agent, 120), clean(b.agentPh, 20), client, clientPhone, clean(b.ptype, 60), clean(b.loc, 120),
        clean(b.budget, 60), clean(b.when, 60), clean(b.service, 80), clean(b.notes, 1000), dup ? dup.id : null]);
-    await q("INSERT INTO lead_updates (lead_id, status, note, shared) VALUES ($1,'new','Lead received from referral form',true)", [r[0].id]);
+    await q("INSERT INTO mib_lead_updates (lead_id, status, note, shared) VALUES ($1,'new','Lead received from referral form',true)", [r[0].id]);
     send(res, 201, { ok: true });
   },
 });

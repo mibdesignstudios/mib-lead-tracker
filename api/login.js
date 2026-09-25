@@ -23,7 +23,7 @@ export default route({
     }
     const code = String(b.code || "").trim().toUpperCase();
     throttle("agent:" + code);
-    const rows = await q("SELECT id, code, name, pin_hash, active FROM agents WHERE code=$1", [code]);
+    const rows = await q("SELECT id, code, name, pin_hash, active FROM mib_agents WHERE code=$1", [code]);
     const a = rows[0];
     if (!a || !(await bcrypt.compare(String(b.pin || ""), a.pin_hash))) throw httpError(401, "Partner ID or PIN is wrong.");
     if (!a.active) throw httpError(403, "This partner account is not active. Contact MIB Design Studios.");

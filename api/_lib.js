@@ -32,7 +32,7 @@ let schemaReady = null;
 function ensureSchema() {
   if (!schemaReady) {
     schemaReady = getPool().query(`
-      CREATE TABLE IF NOT EXISTS agents (
+      CREATE TABLE IF NOT EXISTS mib_agents (
         id SERIAL PRIMARY KEY,
         code TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
@@ -42,9 +42,9 @@ function ensureSchema() {
         active BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
-      CREATE TABLE IF NOT EXISTS leads (
+      CREATE TABLE IF NOT EXISTS mib_leads (
         id SERIAL PRIMARY KEY,
-        agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+        agent_id INTEGER REFERENCES mib_agents(id) ON DELETE SET NULL,
         agent_name_raw TEXT,
         agent_phone_raw TEXT,
         client_name TEXT NOT NULL,
@@ -67,26 +67,26 @@ function ensureSchema() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
-      CREATE TABLE IF NOT EXISTS lead_updates (
+      CREATE TABLE IF NOT EXISTS mib_lead_updates (
         id SERIAL PRIMARY KEY,
-        lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+        lead_id INTEGER NOT NULL REFERENCES mib_leads(id) ON DELETE CASCADE,
         status TEXT,
         note TEXT,
         shared BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
-      CREATE TABLE IF NOT EXISTS payments (
+      CREATE TABLE IF NOT EXISTS mib_payments (
         id SERIAL PRIMARY KEY,
-        agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-        lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+        agent_id INTEGER NOT NULL REFERENCES mib_agents(id) ON DELETE CASCADE,
+        lead_id INTEGER REFERENCES mib_leads(id) ON DELETE SET NULL,
         amount NUMERIC NOT NULL,
         paid_on DATE NOT NULL DEFAULT CURRENT_DATE,
         note TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
-      CREATE INDEX IF NOT EXISTS leads_agent_idx ON leads(agent_id);
-      CREATE INDEX IF NOT EXISTS leads_status_idx ON leads(status);
-      CREATE INDEX IF NOT EXISTS updates_lead_idx ON lead_updates(lead_id);
+      CREATE INDEX IF NOT EXISTS mib_leads_agent_idx ON mib_leads(agent_id);
+      CREATE INDEX IF NOT EXISTS mib_leads_status_idx ON mib_leads(status);
+      CREATE INDEX IF NOT EXISTS mib_updates_lead_idx ON mib_lead_updates(lead_id);
     `).catch(e => { schemaReady = null; throw e; });
   }
   return schemaReady;
@@ -176,7 +176,7 @@ export async function requireAdmin(req) {
 export async function requireAgent(req) {
   const s = await getSession(req);
   if (!s || s.role !== "agent") throw httpError(401, "Please log in.");
-  const rows = await q("SELECT id, active FROM agents WHERE id=$1", [s.agentId]);
+  const rows = await q("SELECT id, active FROM mib_agents WHERE id=$1", [s.agentId]);
   if (!rows[0] || !rows[0].active) throw httpError(401, "This partner account is not active. Contact MIB Design Studios.");
   return s;
 }
@@ -194,5 +194,5 @@ export const AGENT_MONEY_SQL = `
     COUNT(l.id) AS leads,
     COUNT(l.id) FILTER (WHERE l.status='onboard') AS onboard,
     COUNT(l.id) FILTER (WHERE l.status NOT IN ('onboard','lost')) AS active_leads,
-    (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.agent_id=a.id) AS paid
-  FROM agents a LEFT JOIN leads l ON l.agent_id=a.id`;
+    (SELECT COALESCE(SUM(p.amount),0) FROM mib_payments p WHERE p.agent_id=a.id) AS paid
+  FROM mib_agents a LEFT JOIN mib_leads l ON l.agent_id=a.id`;

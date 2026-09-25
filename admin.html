@@ -45,14 +45,14 @@
       <button class="btn btn-primary" type="button" id="addPartnerBtn">+ Add partner</button>
     </div>
     <form id="partnerForm" class="card" hidden novalidate>
-      <h2>New partner</h2>
+      <h2 id="pTitle">New partner</h2>
       <div class="grid">
         <label class="f" for="pName">Name<input id="pName" required placeholder="e.g. Rahul Patil"></label>
         <label class="f" for="pPhone">WhatsApp number<input id="pPhone" inputmode="tel" placeholder="98XXXXXXXX"></label>
         <label class="f" for="pFirm">Agency / firm<input id="pFirm" placeholder="Optional"></label>
       </div>
-      <p class="muted small">We'll create a Partner ID and a 6-digit PIN. Leads already sent from this WhatsApp number get linked automatically.</p>
-      <div class="row"><button class="btn btn-primary" type="submit">Create partner</button><button class="btn btn-ghost" type="button" id="pCancel">Cancel</button></div>
+      <p class="muted small" id="pHint">We'll create a Partner ID and a 6-digit PIN. Leads already sent from this WhatsApp number get linked automatically.</p>
+      <div class="row"><button class="btn btn-primary" type="submit" id="pSubmit">Create partner</button><button class="btn btn-ghost" type="button" id="pCancel">Cancel</button></div>
     </form>
     <div id="newLogin" hidden></div>
     <div class="list" id="partnerList"></div>
@@ -163,6 +163,7 @@ function renderAgents(){
       <div class="row">
         <button class="btn btn-ghost btn-sm" data-act="leads" data-id="${a.id}">View leads</button>
         <button class="btn btn-ghost btn-sm" data-act="pay" data-id="${a.id}">Record payment</button>
+        <button class="btn btn-ghost btn-sm" data-act="edit" data-id="${a.id}">Edit details</button>
         <button class="btn btn-ghost btn-sm" data-act="pin" data-id="${a.id}">Reset PIN</button>
         <button class="btn btn-ghost btn-sm" data-act="toggle" data-id="${a.id}">${a.active?"Deactivate":"Activate"}</button>
       </div></article>`; }).join("");
@@ -170,6 +171,7 @@ function renderAgents(){
 $("partnerList").onclick = async e => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
   const a = S.agents.find(x => x.id == b.dataset.id);
+  if (b.dataset.act === "edit") return openPartnerForm(a);
   if (b.dataset.act === "leads"){ S.agent = String(a.id); S.status = ""; show("leads"); }
   if (b.dataset.act === "pay"){ show("payments"); $("payAgent").value = a.id; $("payAgent").dispatchEvent(new Event("change")); }
   if (b.dataset.act === "pin"){
@@ -179,14 +181,30 @@ $("partnerList").onclick = async e => {
   }
   if (b.dataset.act === "toggle"){ await api("/api/agents", { method: "PATCH", body: { id: a.id, active: !a.active } }); toast(a.active ? "Partner deactivated" : "Partner activated"); loadAgents(true); }
 };
-$("addPartnerBtn").onclick = () => { $("partnerForm").hidden = false; $("pName").focus(); };
-$("pCancel").onclick = () => { $("partnerForm").hidden = true; };
+let editingPartner = null;
+function openPartnerForm(a){
+  editingPartner = a || null;
+  $("pTitle").textContent = a ? `Edit ${a.name} (${a.code})` : "New partner";
+  $("pSubmit").textContent = a ? "Save changes" : "Create partner";
+  $("pHint").textContent = a ? "The Partner ID and PIN stay the same. Leads already sent from the new WhatsApp number get linked to this partner."
+    : "We'll create a Partner ID and a 6-digit PIN. Leads already sent from this WhatsApp number get linked automatically.";
+  $("pName").value = a ? a.name : ""; $("pPhone").value = a ? (a.phone || "") : ""; $("pFirm").value = a ? (a.firm || "") : "";
+  $("partnerForm").hidden = false; $("partnerForm").scrollIntoView({ behavior: "smooth", block: "start" }); $("pName").focus();
+}
+$("addPartnerBtn").onclick = () => openPartnerForm(null);
+$("pCancel").onclick = () => { $("partnerForm").hidden = true; editingPartner = null; };
 $("partnerForm").onsubmit = async e => {
   e.preventDefault();
+  const body = { name: $("pName").value, phone: $("pPhone").value, firm: $("pFirm").value };
   try {
-    const r = await api("/api/agents", { method: "POST", body: { name: $("pName").value, phone: $("pPhone").value, firm: $("pFirm").value } });
-    $("partnerForm").reset(); $("partnerForm").hidden = true;
-    showLogin(r.agent, r.pin, "Partner created. Send them their login now — the PIN is shown only once.");
+    if (editingPartner){
+      await api("/api/agents", { method: "PATCH", body: { id: editingPartner.id, ...body } });
+      toast("Partner details saved");
+    } else {
+      const r = await api("/api/agents", { method: "POST", body });
+      showLogin(r.agent, r.pin, "Partner created. Send them their login now — the PIN is shown only once.");
+    }
+    $("partnerForm").reset(); $("partnerForm").hidden = true; editingPartner = null;
     loadAgents(true);
   } catch (err) { toast(err.message); }
 };
